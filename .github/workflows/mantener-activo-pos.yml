@@ -26,7 +26,6 @@ jobs:
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
-            -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
             "$SUPABASE_URL/rest/v1/")
           echo "Supabase REST -> HTTP $code"
           if [ "$code" -ge 400 ] || [ "$code" -eq 000 ]; then
