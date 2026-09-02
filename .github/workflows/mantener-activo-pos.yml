@@ -2,10 +2,16 @@ name: Mantener activo Sistema POS
 
 # Visita el POS y consulta su base de datos cada 6 horas para que
 # Supabase (plan gratuito) no pause el proyecto por inactividad.
+# La llave usada es la publica ("publishable") de la app, disenada
+# para vivir en el navegador de cualquier cliente.
 on:
   schedule:
     - cron: '23 */6 * * *'
   workflow_dispatch:
+
+env:
+  SUPABASE_URL: https://uaperjykllcugmgbeyph.supabase.co
+  SUPABASE_PUBLISHABLE_KEY: sb_publishable_1GZJY46dqWaidBLnzE6e2Q_V78yuuVC
 
 jobs:
   ping:
@@ -16,38 +22,14 @@ jobs:
           code=$(curl -sL -o /dev/null -w '%{http_code}' --max-time 60 https://el-jalisco-pos.vercel.app/login)
           echo "Vercel /login -> HTTP $code"
 
-      - name: Obtener la llave publica de la app
-        id: key
-        run: |
-          html=$(curl -sL --max-time 60 https://el-jalisco-pos.vercel.app/login)
-          key=$(printf '%s' "$html" | grep -oE 'sb_publishable_[A-Za-z0-9_-]+|eyJhbGciOiJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' | head -1 || true)
-          if [ -z "$key" ]; then
-            for js in $(printf '%s' "$html" | grep -oE '/_next/static/[^"]+\.js' | sort -u | head -30); do
-              key=$(curl -sL --max-time 60 "https://el-jalisco-pos.vercel.app$js" | grep -oE 'sb_publishable_[A-Za-z0-9_-]+|eyJhbGciOiJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' | head -1 || true)
-              [ -n "$key" ] && break
-            done
-          fi
-          if [ -n "$key" ]; then
-            echo "Llave publica encontrada en la app"
-          else
-            echo "No se encontro llave publica; se usara el ping de salud"
-          fi
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-
       - name: Consultar la base de datos (Supabase)
         run: |
-          KEY='${{ steps.key.outputs.key }}'
-          if [ -n "$KEY" ]; then
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 \
-              -H "apikey: $KEY" \
-              "https://uaperjykllcugmgbeyph.supabase.co/rest/v1/")
-            echo "Supabase REST (con llave) -> HTTP $code"
-          else
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 \
-              "https://uaperjykllcugmgbeyph.supabase.co/auth/v1/health")
-            echo "Supabase health (sin llave) -> HTTP $code"
-          fi
-          if [ "$code" -ge 500 ] || [ "$code" -eq 000 ]; then
-            echo "La base de datos no respondio (HTTP $code) — puede estar pausada de nuevo."
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+            "$SUPABASE_URL/rest/v1/")
+          echo "Supabase REST -> HTTP $code"
+          if [ "$code" -ge 400 ] || [ "$code" -eq 000 ]; then
+            echo "La base de datos no acepto la consulta (HTTP $code) — puede estar pausada o la llave cambio."
             exit 1
           fi
