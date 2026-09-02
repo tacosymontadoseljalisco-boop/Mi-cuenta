@@ -24,10 +24,14 @@ jobs:
 
       - name: Consultar la base de datos (Supabase)
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 \
+          body=$(mktemp)
+          code=$(curl -s -o "$body" -w '%{http_code}' --max-time 60 \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
             "$SUPABASE_URL/rest/v1/")
           echo "Supabase REST -> HTTP $code"
+          echo "Respuesta: $(head -c 500 "$body")"
+          echo "--- health de auth como referencia ---"
+          curl -s --max-time 60 -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/auth/v1/health" | head -c 300; echo
           if [ "$code" -ge 400 ] || [ "$code" -eq 000 ]; then
             echo "La base de datos no acepto la consulta (HTTP $code) — puede estar pausada o la llave cambio."
             exit 1
