@@ -22,17 +22,18 @@ jobs:
           code=$(curl -sL -o /dev/null -w '%{http_code}' --max-time 60 https://el-jalisco-pos.vercel.app/login)
           echo "Vercel /login -> HTTP $code"
 
-      - name: Consultar la base de datos (Supabase)
+      - name: Consultar Supabase (mantiene el proyecto activo)
         run: |
-          body=$(mktemp)
-          code=$(curl -s -o "$body" -w '%{http_code}' --max-time 60 \
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 \
             -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
-            "$SUPABASE_URL/rest/v1/")
-          echo "Supabase REST -> HTTP $code"
-          echo "Respuesta: $(head -c 500 "$body")"
-          echo "--- health de auth como referencia ---"
-          curl -s --max-time 60 -H "apikey: $SUPABASE_PUBLISHABLE_KEY" "$SUPABASE_URL/auth/v1/health" | head -c 300; echo
-          if [ "$code" -ge 400 ] || [ "$code" -eq 000 ]; then
-            echo "La base de datos no acepto la consulta (HTTP $code) — puede estar pausada o la llave cambio."
+            "$SUPABASE_URL/auth/v1/health")
+          echo "Supabase auth health -> HTTP $code"
+          # Toque extra al API de datos; el codigo no importa, la visita cuenta
+          rest=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            "$SUPABASE_URL/rest/v1/keepalive?select=*&limit=1")
+          echo "Supabase REST -> HTTP $rest"
+          if [ "$code" -ne 200 ]; then
+            echo "Supabase no respondio bien (HTTP $code) — el proyecto puede estar pausado o la llave cambio."
             exit 1
           fi
